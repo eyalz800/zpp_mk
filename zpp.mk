@@ -96,6 +96,7 @@ endif
 
 ZPP_INTERMEDIATE_DIRECTORY := $(ZPP_INTERMEDIATE_DIRECTORY_ROOT)/$(ZPP_CONFIGURATION)/$(ZPP_TARGET_TYPE)
 ZPP_OUTPUT_DIRECTORY := $(ZPP_OUTPUT_DIRECTORY_ROOT)/$(ZPP_CONFIGURATION)/$(ZPP_TARGET_TYPE)
+ZPP_COMPILE_COMMANDS_PATHS := $(ZPP_INTERMEDIATE_DIRECTORY)
 
 ZPP_PATH_FROM_ROOT := $(shell echo $(ZPP_SOURCE_FILES) | grep -o "\(\.\./\)*" | sort --unique | tail -n 1)
 ifneq ($(ZPP_PATH_FROM_ROOT), )
@@ -159,7 +160,7 @@ define GENERATE_COMPILE_COMMANDS_SCRIPT
 import os
 import json
 compile_commands = []
-for root, _, files in os.walk('$(ZPP_INTERMEDIATE_DIRECTORY)'):
+for root, _, files in os.walk('$(ZPP_COMPILE_COMMANDS_PATHS)'):
 	for file in files:
 		if not file.endswith('.zppcmd'):
 			continue
