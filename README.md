@@ -49,7 +49,7 @@ project
 The `zpp.mk` file contains the build system logic which is not intended to be modified.
 The `zpp_project.mk` file contains project settings, compilation flags, and toolchain configuraion.
 
-Run `make -f zpp.mk` to build the project.
+Run `make -f zpp.mk` or execute `./zpp.mk` to build the project.
 The output will be like so:
 ```
 Building 'default/output' in 'debug' mode...
@@ -75,6 +75,8 @@ ZPP_OUTPUT_DIRECTORY_ROOT := ./out
 ZPP_INTERMEDIATE_DIRECTORY_ROOT = ./obj
 ZPP_SOURCE_DIRECTORIES := ./src
 ZPP_SOURCE_FILES :=
+ZPP_INCLUDE_PROJECTS :=
+ZPP_COMPILE_COMMANDS_JSON := compile_commands.json
 endif
 ```
 The content of this section must be enclosed with `ZPP_PROJECT_SETTINGS` condition
@@ -146,9 +148,35 @@ Example:
 ZPP_SOURCE_FILES := ../external/src/external_lib.cpp ./src/main.cpp
 ```
 
+The `ZPP_INCLUDE_PROJECTS` allows to use the main `zpp.mk` makefile to directly build multiple
+projects and thereby ignore any other field that appears in the `zpp_project.mk`, while immediately
+building the mentioned projects.
+Example:
+```
+# Each project in this example is a subdirectory.
+ZPP_INCLUDE_PROJECTS := project1 project2 project3
+```
+
+The `ZPP_COMPILE_COMMANDS_JSON` allows to control whether or not a `compile_commands.json` is generated.
+This variable accepts the value of the compile commands file relative path.
+If this variable is empty, no compile commands is generated.
+It is possible to ask to generate the compile commands in the intermediate directories, for this, assign
+the `intermediate` as the value of the variable.
+Example:
+```
+# Place the compile commands inside the source tree.
+ZPP_COMPILE_COMMANDS_JSON := compile_commands.json
+
+# Place the compile commands in the intermediate directories.
+ZPP_COMPILE_COMMANDS_JSON := intermediate
+
+# Do not generate compile commands.
+ZPP_COMPILE_COMMANDS_JSON :=
+```
+
 ### Project Flags Section
 This section which must be enclosed by the `ZPP_PROJECT_FLAGS` variable,
-controls the compiler and linker flags, leaving most of the work to the 
+controls the compiler and linker flags, leaving most of the work to the
 user so that it is as flexible as possible.
 
 The following examples contains some basic flags for simple projects.
@@ -261,7 +289,7 @@ endif
 
 ### Toolchain Settings Section
 This section which must be enclosed by the `ZPP_TOOLCHAIN_SETTINGS` variable, has to export
-the following functional tools: 
+the following functional tools:
 * `ZPP_CC` - a C compiler.
 * `ZPP_CXX` - a C++ compiler.
 * `ZPP_AS` - an Assembly compiler.
@@ -277,6 +305,7 @@ ZPP_CXX := clang++
 ZPP_AS := $(ZPP_CC)
 ZPP_LINK := $(ZPP_CXX)
 ZPP_AR := ar
+ZPP_PYTHON := python3
 endif
 ```
 Note that here we use the `ZPP_CC` as assembly compiler as well, and
@@ -299,6 +328,8 @@ endif
 endif
 ```
 
+The `ZPP_PYTHON` is only required if the project settings ask to build the `compile_commands.json` file.
+
 At the appendix section there is an example for a possible windows `toolchain.mk` file.
 
 Cleaning and Rebuilding
@@ -309,10 +340,27 @@ or `make -f zpp.mk rebuild` commands respectively.
 Multi Project Setup
 -------------------
 Multi project set up is quite natural using this utility, it can even
-be done in multiple ways. The idea is 
+be done in multiple ways. The idea is
 to have a top level makefile that calls the bottom ones.
 
-To do that we will have the following project tree:
+The easiest way is to just have the following tree:
+```
+solution:
+- project1
+  - include
+  - src
+  - zpp_project.mk
+- project2
+  - include
+  - src
+  - zpp_project.mk
+- zpp.mk
+```
+Invoke the following command `make -f zpp.mk projects='project1 project2`.
+Another way is to have a `zpp_project.mk` in the top level directory and define the
+`ZPP_INCLUDE_PROJECTS` appropriately.
+
+A more manual do-it-yourself way is to have the following project tree:
 ```
 solution:
 - project1
@@ -329,7 +377,7 @@ solution:
 The contents of the top level makefile can be:
 ```make
 PROJECTS = project1 project2
-all: 
+all:
 	@for project in $(PROJECTS) ; do \
 		$(MAKE) -s -f ../zpp.mk -C $$project; \
 	done
@@ -398,7 +446,7 @@ else
 $(error Unsupported target)
 endif
 
-EMPTY := 
+EMPTY :=
 SPACE := $(EMPTY) $(EMPTY)
 
 VISUAL_STUDIO_ROOT := $(subst $(SPACE),+,$(VISUAL_STUDIO_ROOT))

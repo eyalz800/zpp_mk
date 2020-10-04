@@ -6,6 +6,8 @@ ZPP_OUTPUT_DIRECTORY_ROOT := ./out
 ZPP_INTERMEDIATE_DIRECTORY_ROOT = ./obj
 ZPP_SOURCE_DIRECTORIES := ./src
 ZPP_SOURCE_FILES :=
+ZPP_INCLUDE_PROJECTS :=
+ZPP_COMPILE_COMMANDS_JSON := compile_commands.json
 endif
 
 ifeq ($(ZPP_PROJECT_FLAGS), true)
@@ -40,5 +42,6 @@ ZPP_CXX := clang++
 ZPP_AS := $(ZPP_CC)
 ZPP_LINK := $(ZPP_CXX)
 ZPP_AR := ar
+ZPP_PYTHON := python3
 endif
 
