@@ -202,6 +202,7 @@ ZPP_LFLAGS := $(ZPP_FLAGS) $(ZPP_CXXFLAGS) -pie -Wl,--no-undefined
 ZPP_LFLAGS_DEBUG :=  $(ZPP_FLAGS_DEBUG)
 ZPP_LFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE) \
 	-Wl,--strip-all -Wl,-flto -Wl,--gc-sections
+ZPP_POSTLINK_COMMANDS :=
 endif
 ```
 
@@ -262,6 +263,9 @@ ZPP_LFLAGS_DEBUG :=  $(ZPP_FLAGS_DEBUG)
 ZPP_LFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE) \
 	-Wl,--strip-all -Wl,-flto -Wl,--gc-sections
 ```
+
+The `ZPP_POSTLINK_COMMANDS` allows to run custom shell commands after linking,
+for your convenience.
 
 ### Project Rules Section
 The project rules section is a reserved space for custom rules that needs to take

@@ -31,6 +31,7 @@ ZPP_LFLAGS := $(ZPP_FLAGS) $(ZPP_CXXFLAGS) -pie -Wl,--no-undefined
 ZPP_LFLAGS_DEBUG :=  $(ZPP_FLAGS_DEBUG)
 ZPP_LFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE) \
 	-Wl,--strip-all -Wl,-flto -Wl,--gc-sections
+ZPP_POSTLINK_COMMANDS :=
 endif
 
 ifeq ($(ZPP_PROJECT_RULES), true)
