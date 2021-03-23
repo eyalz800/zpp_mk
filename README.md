@@ -199,7 +199,7 @@ ZPP_ASFLAGS := $(ZPP_FLAGS) -x assembler-with-cpp
 ZPP_ASFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 ZPP_ASFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE)
 ZPP_LFLAGS := $(ZPP_FLAGS) $(ZPP_CXXFLAGS) -pie -Wl,--no-undefined
-ZPP_LFLAGS_DEBUG :=  $(ZPP_FLAGS_DEBUG)
+ZPP_LFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 ZPP_LFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE) \
 	-Wl,--strip-all -Wl,-flto -Wl,--gc-sections
 ZPP_POSTLINK_COMMANDS :=
@@ -257,7 +257,7 @@ The `ZPP_LFLAGS`, `ZPP_LFLAGS_DEBUG` and `ZPP_LFLAGS_RELEASE` are the flags
 passed in the final link phase, again, generic ones, and debug/release specific ones:
 ```make
 ZPP_LFLAGS := $(ZPP_FLAGS) $(ZPP_CXXFLAGS) -pie -Wl,--no-undefined
-ZPP_LFLAGS_DEBUG :=  $(ZPP_FLAGS_DEBUG)
+ZPP_LFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 
 # In release, strip the output, and use link time optimizations.
 ZPP_LFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE) \
