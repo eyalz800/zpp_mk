@@ -184,10 +184,12 @@ ifeq ($(ZPP_COMPILE_COMMANDS_JSON), )
 build_single: $(ZPP_OUTPUT_DIRECTORY)/$(ZPP_TARGET_NAME)
 	@echo "Built '$(ZPP_TARGET_TYPE)/$(ZPP_TARGET_NAME)'."
 else
+ZPP_COMMAND_FILES := $(patsubst %, %.zppcmd, $(ZPP_OBJECT_FILES))
+
 build_single: $(ZPP_COMPILE_COMMANDS_JSON) $(ZPP_OUTPUT_DIRECTORY)/$(ZPP_TARGET_NAME)
 	@echo "Built '$(ZPP_TARGET_TYPE)/$(ZPP_TARGET_NAME)'."
 
-$(ZPP_COMPILE_COMMANDS_JSON): $(ZPP_OBJECT_FILES)
+$(ZPP_COMPILE_COMMANDS_JSON): $(ZPP_COMMAND_FILES)
 	@echo "Building '$@'..."; \
 	$(CALL_GENERATE_COMPILE_COMMANDS_SCRIPT)
 endif
@@ -207,51 +209,65 @@ $(ZPP_OUTPUT_DIRECTORY)/$(ZPP_TARGET_NAME): $(ZPP_OBJECT_FILES)
 ifeq ($(ZPP_GENERATE_ASSEMBLY), true)
 $(ZPP_INTERMEDIATE_DIRECTORY)/%.S: %.c | build_init
 	@echo "Compiling '$<'..."; \
-	echo '$(ZPP_CC) -c $(ZPP_CFLAGS) -o $@ $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o`.d > $@.zppcmd; \
-	echo $< >> $@.zppcmd ; \
 	$(ZPP_CC) -S $(ZPP_CFLAGS) -o $@ $< -MD -Wp,-MD,`dirname $@`/`basename $@ .S`.d
+
+$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.c | build_init
+	@echo '$(ZPP_CC) -c $(ZPP_CFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
 
 $(ZPP_INTERMEDIATE_DIRECTORY)/%.S: %.cpp | build_init
 	@echo "Compiling '$<'..."; \
-	echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o $@ $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o`.d > $@.zppcmd; \
-	echo $< >> $@.zppcmd; \
 	$(ZPP_CXX) -S $(ZPP_CXXFLAGS) -o $@ $< -MD -Wp,-MD,`dirname $@`/`basename $@ .S`.d
+
+$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cpp | build_init
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@a .zppcmd`' $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
 
 $(ZPP_INTERMEDIATE_DIRECTORY)/%.S: %.cc | build_init
 	@echo "Compiling '$<'..."; \
-	echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o $@ $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o`.d > $@.zppcmd; \
-	echo $< >> $@.zppcmd; \
 	$(ZPP_CXX) -S $(ZPP_CXXFLAGS) -o $@ $< -MD -Wp,-MD,`dirname $@`/`basename $@ .S`.d
+
+$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cc | build_init
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
 
 $(ZPP_INTERMEDIATE_DIRECTORY)/%.o: $(ZPP_INTERMEDIATE_DIRECTORY)/%.S
 	@$(ZPP_CC) -Wno-unicode -c -o $@ $<
 else ifeq ($(ZPP_GENERATE_ASSEMBLY), false)
 $(ZPP_INTERMEDIATE_DIRECTORY)/%.o: %.c | build_init
 	@echo "Compiling '$<'..."; \
-	echo '$(ZPP_CC) -c $(ZPP_CFLAGS) -o $@ $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o`.d > $@.zppcmd; \
-	echo $< >> $@.zppcmd; \
 	$(ZPP_CC) -c $(ZPP_CFLAGS) -o $@ $< -MD -Wp,-MD,`dirname $@`/`basename $@ .o`.d
+
+$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.c | build_init
+	@echo '$(ZPP_CC) -c $(ZPP_CFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
 
 $(ZPP_INTERMEDIATE_DIRECTORY)/%.o: %.cpp | build_init
 	@echo "Compiling '$<'..."; \
-	echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o $@ $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o`.d > $@.zppcmd; \
-	echo $< >> $@.zppcmd; \
 	$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o $@ $< -MD -Wp,-MD,`dirname $@`/`basename $@ .o`.d
+
+$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cpp | build_init
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
 
 $(ZPP_INTERMEDIATE_DIRECTORY)/%.o: %.cc | build_init
 	@echo "Compiling '$<'..."; \
-	echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o $@ $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o`.d > $@.zppcmd; \
-	echo $< >> $@.zppcmd; \
 	$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o $@ $< -MD -Wp,-MD,`dirname $@`/`basename $@ .o`.d
+
+$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cc | build_init
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
 else
 $(error ZPP_GENERATE_ASSEMBLY must either be true or false)
 endif
 
 $(ZPP_INTERMEDIATE_DIRECTORY)/%.o: %.S | build_init
 	@echo "Assemblying '$<'..."; \
-	echo '$(ZPP_AS) -c $(ZPP_ASFLAGS) -o $@ $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o`.d > $@.zppcmd; \
-	echo $< >> $@.zppcmd; \
 	$(ZPP_AS) -c $(ZPP_ASFLAGS) -o $@ $< -MD -Wp,-MD,`dirname $@`/`basename $@ .o`.d
+
+$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.S | build_init
+	@echo '$(ZPP_AS) -c $(ZPP_ASFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< -MD -Wp,-MD,'`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
 
 -include $(ZPP_DEPENDENCY_FILES)
 
