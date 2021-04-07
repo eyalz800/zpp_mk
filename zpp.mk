@@ -176,8 +176,9 @@ for m in needed_modules:
 	needed_file = first([f for f in needed_file_candidates if os.path.splitext(os.path.basename(f))[0] == m])
 	if not needed_file:
 		needed_file = first(needed_file_candidates)
-	discovered_modules.add((m, needed_file))
-	needed_files.append(needed_file)
+	if needed_file:
+		discovered_modules.add((m, needed_file))
+		needed_files.append(needed_file)
 rule = target_file + ': ' + ' \\\n\t'.join([f for f in needed_files]) + '\n'
 with open(dependencies_file, 'w') as f:
 	f.write(''.join([rule,
