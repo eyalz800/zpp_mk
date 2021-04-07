@@ -71,6 +71,7 @@ ifeq ($(ZPP_PROJECT_SETTINGS), true)
 ZPP_TARGET_NAME := output
 ZPP_TARGET_TYPES := default
 ZPP_LINK_TYPE := default
+ZPP_CPP_MODULES_TYPE :=
 ZPP_OUTPUT_DIRECTORY_ROOT := ./out
 ZPP_INTERMEDIATE_DIRECTORY_ROOT = ./obj
 ZPP_SOURCE_DIRECTORIES := ./src
@@ -119,6 +120,24 @@ This variable may contain one of the following values:
 Example:
 ```make
 ZPP_LINK_TYPE := default
+```
+
+The `ZPP_CPP_MODULES_TYPE` controls implementation type of C++20 modules. If empty, C++ modules
+are disabled, otherwise, the only supported value is `ZPP_CPP_MODULES_TYPE := clang` which enables
+clang modules. You will need to also set the `ZPP_CXXFLAGS` to include the `-fmodules` flag.
+
+The current implementation is highly experimental, turned off by default,
+and has the following limitations:
+1. Each module interface must have the `.cppm` file extention and its basename must be the same as the
+exported module (i.e `export module a` must be in the file `a.cppm`)
+2. Module interface files must have unique names (i.e no two files named `a.cppm`).
+3. Currently there is no support for module partitions.
+4. Possible untested edge cases may occur if macros or includes are involved together with imports, or with
+the syntax of the import/export directives, as they parsed manually into build rules.
+
+Example:
+```make
+ZPP_CPP_MODULES_TYPE := clang
 ```
 
 The `ZPP_OUTPUT_DIRECTORY_ROOT` and `ZPP_INTERMEDIATE_DIRECTORY_ROOT` control the root directory
@@ -195,6 +214,9 @@ ZPP_CFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE)
 ZPP_CXXFLAGS := $(ZPP_FLAGS) -std=c++17 -stdlib=libc++
 ZPP_CXXFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 ZPP_CXXFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE)
+ZPP_CXXMFLAGS := -fPIE
+ZPP_CXXMFLAGS_DEBUG := -g
+ZPP_CXXMFLAGS_RELEASE :=
 ZPP_ASFLAGS := $(ZPP_FLAGS) -x assembler-with-cpp
 ZPP_ASFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 ZPP_ASFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE)
@@ -238,12 +260,20 @@ ZPP_CFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 ZPP_CFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE)
 ```
 
-The `ZPP_CXXFLAGS`, `ZPP_CXXFLAGS_DEBUG`, and `ZPP_CFLAGS_RELEASE` are similar to their
+The `ZPP_CXXFLAGS`, `ZPP_CXXFLAGS_DEBUG`, and `ZPP_CXXFLAGS_RELEASE` are similar to their
 C counterparts, only for C++:
 ```make
 ZPP_CXXFLAGS := $(ZPP_FLAGS) -std=c++17 -stdlib=libc++
 ZPP_CXXFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 ZPP_CXXFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE)
+```
+
+The `ZPP_CXXMFLAGS`, `ZPP_CXXMFLAGS_DEBUG`, and `ZPP_CXXMFLAGS_RELEASE` are used when
+translating precompiled module files to object files.
+```make
+ZPP_CXXMFLAGS := -fPIE
+ZPP_CXXMFLAGS_DEBUG := -g
+ZPP_CXXMFLAGS_RELEASE :=
 ```
 
 And again, for assembly files:

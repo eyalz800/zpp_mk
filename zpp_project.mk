@@ -2,6 +2,7 @@ ifeq ($(ZPP_PROJECT_SETTINGS), true)
 ZPP_TARGET_NAME := output
 ZPP_TARGET_TYPES := default
 ZPP_LINK_TYPE := default
+ZPP_CPP_MODULES_TYPE :=
 ZPP_OUTPUT_DIRECTORY_ROOT := ./out
 ZPP_INTERMEDIATE_DIRECTORY_ROOT = ./obj
 ZPP_SOURCE_DIRECTORIES := ./src
@@ -12,7 +13,7 @@ endif
 
 ifeq ($(ZPP_PROJECT_FLAGS), true)
 ZPP_FLAGS := \
-	$(patsubst %, -I%, $(shell find . -type d -name "include")) \
+	$(patsubst %, -I%, $(shell find . -type d -name "inc" -or -name "include")) \
 	-pedantic -Wall -Wextra -Werror -fPIE
 ZPP_FLAGS_DEBUG := -g
 ZPP_FLAGS_RELEASE := \
@@ -21,9 +22,12 @@ ZPP_FLAGS_RELEASE := \
 ZPP_CFLAGS := $(ZPP_FLAGS) -std=c11
 ZPP_CFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 ZPP_CFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE)
-ZPP_CXXFLAGS := $(ZPP_FLAGS) -std=c++17 -stdlib=libc++
+ZPP_CXXFLAGS := $(ZPP_FLAGS) -std=c++20 -stdlib=libc++
 ZPP_CXXFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 ZPP_CXXFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE)
+ZPP_CXXMFLAGS := -fPIE
+ZPP_CXXMFLAGS_DEBUG := -g
+ZPP_CXXMFLAGS_RELEASE :=
 ZPP_ASFLAGS := $(ZPP_FLAGS) -x assembler-with-cpp
 ZPP_ASFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 ZPP_ASFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE)
