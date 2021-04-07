@@ -129,10 +129,13 @@ clang modules. You will need to also set the `ZPP_CXXFLAGS` to include the `-fmo
 The current implementation is highly experimental, turned off by default,
 and has the following limitations:
 1. Each module interface must have the `.cppm` file extention and its basename must be the same as the
-exported module (i.e `export module a` must be in the file `a.cppm`)
-2. Module interface files must have unique names (i.e no two files named `a.cppm`).
-3. Currently there is no support for module partitions.
-4. Possible untested edge cases may occur if macros or includes are involved together with imports, or with
+exported module (i.e `export module a;` must be in the file `a.cppm`)
+2. Module names with dots are supported, in a way that either the module interface file name includes dots, or
+that the module interface file is inside a directory tree matching the names separated by dots (i.e `export module hello.world;` can be
+declared in the module interface file `hello/world.cppm`)
+3. Module interface files must have unique names (i.e no two files named `a.cppm`).
+4. Currently there is no support for module partitions.
+5. Possible untested edge cases may occur if macros or includes are involved together with imports, or with
 the syntax of the import/export directives, as they parsed manually into build rules.
 
 Example:
