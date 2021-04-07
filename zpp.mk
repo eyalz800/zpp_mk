@@ -291,7 +291,7 @@ $(ZPP_INTERMEDIATE_DIRECTORY)/%.S: %.cpp | build_init $(ZPP_COMPILE_COMMANDS_JSO
 		-MD -MP -MF `dirname $@`/`basename $@ .S`.d
 
 $(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cpp | build_init
-	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@a .zppcmd`' $< ' \
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
 		'$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAGS_$(subst .,__dot__,$(subst /,__sep__,$<))) ' \
 		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
 	echo $< >> $@
