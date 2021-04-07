@@ -6,7 +6,6 @@
 	build \
 	build_single \
 	build_init \
-	build_dep_init \
 	rebuild \
 	rebuild_single \
 	clean_mode \
