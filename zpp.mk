@@ -4,13 +4,10 @@
 .PHONY: \
 	all \
 	build \
-	build_single \
 	build_init \
 	rebuild \
-	rebuild_single \
 	clean_mode \
-	clean \
-	clean_single
+	clean
 
 mode ?= debug
 assembly ?= false
@@ -50,11 +47,11 @@ build:
 	done
 clean:
 	@for project in $(ZPP_PROJECTS_DIRECTORIES); do \
-		$(MAKE) projects= -s -f `realpath $(ZPP_THIS_MAKEFILE) --relative-to $$project` -C $$project clean ZPP_SKIP_DEPENDENCIES=true ; \
+		$(MAKE) projects= -s -f `realpath $(ZPP_THIS_MAKEFILE) --relative-to $$project` -C $$project clean ZPP_CLEANING=true ; \
 	done
 rebuild:
 	@for project in $(ZPP_PROJECTS_DIRECTORIES); do \
-		$(MAKE) projects= -s -f `realpath $(ZPP_THIS_MAKEFILE) --relative-to $$project` -C $$project rebuild ZPP_SKIP_DEPENDENCIES=true ; \
+		$(MAKE) projects= -s -f `realpath $(ZPP_THIS_MAKEFILE) --relative-to $$project` -C $$project rebuild ZPP_CLEANING=true ; \
 	done
 
 else # ifneq ($(ZPP_INCLUDE_PROJECTS), )
@@ -65,20 +62,17 @@ build:
 	done
 clean:
 	@for target_type in $(ZPP_TARGET_TYPES); do \
-		$(MAKE) -s -f $(ZPP_THIS_MAKEFILE) clean ZPP_SKIP_DEPENDENCIES=true ZPP_TARGET_TYPE=$$target_type; \
+		$(MAKE) -s -f $(ZPP_THIS_MAKEFILE) clean ZPP_CLEANING=true ZPP_TARGET_TYPE=$$target_type; \
 	done
 rebuild:
 	@for target_type in $(ZPP_TARGET_TYPES); do \
-		$(MAKE) -s -f $(ZPP_THIS_MAKEFILE) rebuild ZPP_SKIP_DEPENDENCIES=true ZPP_TARGET_TYPE=$$target_type; \
+		$(MAKE) -s -f $(ZPP_THIS_MAKEFILE) rebuild ZPP_CLEANING=true ZPP_TARGET_TYPE=$$target_type; \
 	done
-else
-build: build_single
-clean: clean_single
-rebuild: rebuild_single
+else # ifeq ($(ZPP_TARGET_TYPE), )
 
 ifeq ($(filter $(ZPP_TARGET_TYPE), $(ZPP_TARGET_TYPES)), )
 $(error Invalid target type)
-endif
+endif # ($(filter $(ZPP_TARGET_TYPE), $(ZPP_TARGET_TYPES)), )
 
 ifeq ($(ZPP_SOURCE_DIRECTORIES), )
 ZPP_SOURCE_FILES := $(ZPP_SOURCE_FILES)
@@ -86,10 +80,19 @@ else
 ZPP_SOURCE_FILES := $(ZPP_SOURCE_FILES) \
 	$(shell find $(ZPP_SOURCE_DIRECTORIES) -type f -name "*.S") \
 	$(shell find $(ZPP_SOURCE_DIRECTORIES) -type f -name "*.c") \
-	$(shell find $(ZPP_SOURCE_DIRECTORIES) -type f -name "*.cc") \
 	$(shell find $(ZPP_SOURCE_DIRECTORIES) -type f -name "*.cpp") \
+	$(shell find $(ZPP_SOURCE_DIRECTORIES) -type f -name "*.cxx") \
+	$(shell find $(ZPP_SOURCE_DIRECTORIES) -type f -name "*.cc") \
 	$(shell find $(ZPP_SOURCE_DIRECTORIES) -type f -name "*.cppm")
 endif
+
+ZPP_CPP_SOURCE_FILES := \
+	$(filter %.cpp, $(ZPP_SOURCE_FILES)) \
+	$(filter %.cxx, $(ZPP_SOURCE_FILES)) \
+	$(filter %.cc, $(ZPP_SOURCE_FILES)) \
+	$(filter %.cppm, $(ZPP_SOURCE_FILES))
+ZPP_C_SOURCE_FILES := $(filter %.c, $(ZPP_SOURCE_FILES))
+ZPP_ASSEMBLY_SOURCE_FILES := $(filter %.S, $(ZPP_SOURCE_FILES))
 
 ifeq ($(strip $(ZPP_SOURCE_FILES)), )
 $(error No source files)
@@ -141,76 +144,92 @@ ifeq ($(ZPP_CPP_MODULES_TYPE), )
 ZPP_COMPILED_MODULE_FILES :=
 else ifeq ($(ZPP_CPP_MODULES_TYPE), clang)
 ZPP_COMPILED_MODULE_EXTENSION := pcm
-ZPP_COMPILED_MODULE_FILES := $(filter %.cppm, $(ZPP_SOURCE_FILES))
-ZPP_COMPILED_MODULE_FILES := $(patsubst %.cppm, %.$(ZPP_COMPILED_MODULE_EXTENSION), $(ZPP_COMPILED_MODULE_FILES))
-ZPP_COMPILED_MODULE_FILES := $(patsubst %, $(ZPP_INTERMEDIATE_DIRECTORY)/%, $(ZPP_COMPILED_MODULE_FILES))
-
-define ZPP_CREATE_MODULE_DEPENDENCIES_SCRIPT
-import os
-import sys
-dependencies_file = sys.argv[1]
-source_file = sys.argv[2]
-source_file_type = os.path.splitext(source_file)[1]
-first = lambda l: l[0] if l else None
-compiled_module_files = '$(ZPP_COMPILED_MODULE_FILES)'.split()
-intermediate_ext = '.S' if '$(ZPP_GENERATE_ASSEMBLY)' == 'true' else '.o'
-target_file = os.path.join(os.path.dirname(dependencies_file), os.path.basename(dependencies_file).split('.')[0]) \
-	+ ('.$(ZPP_COMPILED_MODULE_EXTENSION)' if source_file_type == '.cppm' else intermediate_ext)
-dependency_directives = '\n'.join([line.strip() for line in sys.stdin.read().strip().replace('\r', '').split('\n') if not line.strip().startswith('#')])
-dependency_directives = [s.strip().split() for s in dependency_directives.split(';') if '<' not in s and '"' not in s]
-dependency_directives = [s for s in dependency_directives if len(s) > 1 and s[0] in ['import', 'export', 'module']]
-needed_modules = [m[1] if m[0] in ['import', 'module'] else m[2] \
-				 for m in dependency_directives if m[0] in ['import', 'module'] or (m[0] == 'export' and m[1] == 'import')]
-module = first([m[1] for m in dependency_directives if m[0] == 'module'])
-module_file_candidates = [f for f in compiled_module_files if module and os.path.splitext(f)[0][-len(module):].replace('/', '.') == module]
-module_file = first([f for f in module_file_candidates if module and os.path.splitext(os.path.basename(f))[0] == module])
-discovered_modules = set()
-if not module_file:
-	module_file = first(module_file_candidates)
-if module_file:
-	discovered_modules.add((module, module_file))
-module_flag = ''.join(['-fmodule-file=', module_file, ' ']) if module_file else ''
-needed_files = []
-for m in needed_modules:
-	needed_file_candidates = [f for f in compiled_module_files if os.path.splitext(f)[0][-len(m):].replace('/', '.') == m]
-	needed_file = first([f for f in needed_file_candidates if os.path.splitext(os.path.basename(f))[0] == m])
-	if not needed_file:
-		needed_file = first(needed_file_candidates)
-	if needed_file:
-		discovered_modules.add((m, needed_file))
-		needed_files.append(needed_file)
-rule = target_file + ': ' + ' \\\n\t'.join([f for f in needed_files]) + '\n'
-with open(dependencies_file, 'w') as f:
-	f.write(''.join([rule,
-		'\nZPP_MODULE_FLAGS_', source_file.replace('/', '__sep__').replace('.', '__dot__'), ' := ', module_flag, '\n',
-		'\nZPP_MODULE_FLAGS_ALL += {0}\n'.format( \
-			' '.join(['-fmodule-file={0}={1}'.format(m, f) for m, f in discovered_modules]))
-	]))
-endef
-export ZPP_CREATE_MODULE_DEPENDENCIES_SCRIPT
-ZPP_CREATE_MODULE_DEPENDENCIES := $(ZPP_PYTHON) -c "$$ZPP_CREATE_MODULE_DEPENDENCIES_SCRIPT"
-
 else
 $(error ZPP_CPP_MODULES_TYPE=$(ZPP_CPP_MODULES_TYPE) is unrecognized and not supported)
 endif
 
-ZPP_OBJECT_FILES := $(patsubst %.c, %.o, $(ZPP_SOURCE_FILES))
-ZPP_OBJECT_FILES := $(ZPP_OBJECT_FILES) $(patsubst %.cpp, %.o, $(ZPP_SOURCE_FILES))
-ZPP_OBJECT_FILES := $(ZPP_OBJECT_FILES) $(patsubst %.cc, %.o, $(ZPP_SOURCE_FILES))
-ZPP_OBJECT_FILES := $(ZPP_OBJECT_FILES) $(patsubst %.cppm, %.o, $(ZPP_SOURCE_FILES))
-ZPP_OBJECT_FILES := $(ZPP_OBJECT_FILES) $(patsubst %.S, %.o, $(ZPP_SOURCE_FILES))
-ZPP_OBJECT_FILES := $(patsubst %, $(ZPP_INTERMEDIATE_DIRECTORY)/%, $(ZPP_OBJECT_FILES))
-ZPP_OBJECT_FILES := $(filter %.o, $(ZPP_OBJECT_FILES))
+ifneq ($(ZPP_CPP_MODULES_TYPE), )
+ZPP_MODULE_PROPERTIES_FILES := $(patsubst %, $(ZPP_INTERMEDIATE_DIRECTORY)/%.props, $(ZPP_CPP_SOURCE_FILES))
+ZPP_MODULE_DEPENDENCY_FILES := $(patsubst %, $(ZPP_INTERMEDIATE_DIRECTORY)/%.deps, $(ZPP_CPP_SOURCE_FILES))
+ifeq ($(ZPP_CLEANING), )
+-include $(ZPP_MODULE_PROPERTIES_FILES)
+-include $(ZPP_MODULE_DEPENDENCY_FILES)
+ZPP_MODULE_INTERFACE_DECLARATION_FLAGS := $(sort $(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS))
+endif
+
+ZPP_COMPILED_MODULE_FILES := \
+	$(ZPP_CPP_COMPILED_MODULE_FILES) \
+	$(ZPP_CXX_COMPILED_MODULE_FILES) \
+	$(ZPP_CC_COMPILED_MODULE_FILES) \
+	$(ZPP_CPPM_COMPILED_MODULE_FILES)
+
+define ZPP_CREATE_MODULE_DEPENDENCIES_SCRIPT
+import os
+import sys
+def first(l): return l[0] if l else None
+dependencies_file, source_file = sys.argv[1], sys.argv[2]
+source_file_type = os.path.splitext(source_file)[1][1:]
+module_properties_file = os.path.join('$(ZPP_INTERMEDIATE_DIRECTORY)', source_file + '.props')
+intermediate_extension = '.S' if '$(ZPP_GENERATE_ASSEMBLY)' == 'true' else '.o'
+dependency_directives = '\n'.join([ \
+	line.strip() for line in sys.stdin.read().strip().replace('\r', '').split('\n') \
+	if not line.strip().startswith('#')])
+dependency_directives = [s.strip().split() for s in dependency_directives.split(';') if '<' not in s and '"' not in s]
+dependency_directives = [s for s in dependency_directives if len(s) > 1 and s[0] in ['import', 'export', 'module']]
+module_interface = first([m[2] for m in dependency_directives if len(m) == 3 and m[0] == 'export' and m[1] == 'module'])
+module_implementation = first([m[1] for m in dependency_directives if len(m) == 2 and m[0] == 'module'])
+needed_modules = [m[1] if m[0] in ['import', 'module'] else m[2] for m in dependency_directives \
+				 if len(m) > 1 and (m[0] in ['import', 'module'] or (m[0], m[1]) == ('export', 'import'))]
+translated_file = os.path.join('$(ZPP_INTERMEDIATE_DIRECTORY)', os.path.splitext(source_file)[0]) \
+	+ ('.$(ZPP_COMPILED_MODULE_EXTENSION)' if module_interface else intermediate_extension)
+needed_files = ['$$(ZPP_MODULE_FILE_{0})'.format(needed_module) for needed_module in needed_modules]
+with open(module_properties_file, 'w') as f:
+	f.write(''.join([
+		'ZPP_MODULE_FILE_{0} := {1}\n'.format(module_interface, translated_file) if module_interface else '',
+		''.join(['ZPP_MODULE_INTERFACE_DECLARATION_FLAGS += ',
+			'-fmodule-file=', module_interface, '=', translated_file, '\n']) if module_interface else '',
+		'ZPP_{0}_COMPILED_MODULE_FILES += {1}\n'.format(source_file_type.upper(), translated_file) if module_interface else '',
+		'ZPP_{0}_COMPILED_NONMODULE_FILES += {1}\n'.format(source_file_type.upper(), translated_file) if not module_interface else '',
+	]))
+with open(dependencies_file, 'w') as f:
+	f.write(''.join([
+		''.join([translated_file, ': ', ' \\\n\t'.join([f for f in needed_files]), '\n\n']) if needed_files else '',
+		''.join(['ZPP_MODULE_IMPLEMENTATION_FLAGS_', source_file, ' := ',
+			'-fmodule-file=', '$$(ZPP_MODULE_FILE_{0})'.format(module_implementation), '\n']) if module_implementation else '',
+		''.join(['ZPP_MODULE_IMPLEMENTATION_FLAGS_', source_file[2:], ' := ',
+			'-fmodule-file=', '$$(ZPP_MODULE_FILE_{0})'.format(module_implementation), '\n']) \
+				if module_implementation and source_file.startswith('./') else '',
+	]))
+endef
+export ZPP_CREATE_MODULE_DEPENDENCIES_SCRIPT
+ZPP_CREATE_MODULE_DEPENDENCIES := $(ZPP_PYTHON) -c "$$ZPP_CREATE_MODULE_DEPENDENCIES_SCRIPT"
+endif # ifneq ($(ZPP_CPP_MODULES_TYPE), )
+
+ZPP_C_ASSEMBLY_FILES := $(patsubst %.c, $(ZPP_INTERMEDIATE_DIRECTORY)/%.S, $(filter %.c, $(ZPP_C_SOURCE_FILES)))
+ZPP_CPP_ASSEMBLY_FILES := $(patsubst %.cpp, $(ZPP_INTERMEDIATE_DIRECTORY)/%.S, $(filter %.cpp, $(ZPP_CPP_SOURCE_FILES)))
+ZPP_CXX_ASSEMBLY_FILES := $(patsubst %.cxx, $(ZPP_INTERMEDIATE_DIRECTORY)/%.S, $(filter %.cxx, $(ZPP_CPP_SOURCE_FILES)))
+ZPP_CC_ASSEMBLY_FILES := $(patsubst %.cc, $(ZPP_INTERMEDIATE_DIRECTORY)/%.S, $(filter %.cc, $(ZPP_CPP_SOURCE_FILES)))
+ZPP_CPPM_ASSEMBLY_FILES := $(patsubst %.cppm, $(ZPP_INTERMEDIATE_DIRECTORY)/%.S, $(filter %.cppm, $(ZPP_CPP_SOURCE_FILES)))
+ZPP_S_ASSEMBLY_FILES := $(patsubst %.S, $(ZPP_INTERMEDIATE_DIRECTORY)/%.S, $(filter %.S, $(ZPP_ASSEMBLY_SOURCE_FILES)))
+
+ZPP_C_OBJECT_FILES := $(patsubst %.c, $(ZPP_INTERMEDIATE_DIRECTORY)/%.o, $(filter %.c, $(ZPP_C_SOURCE_FILES)))
+ZPP_CPP_OBJECT_FILES := $(patsubst %.cpp, $(ZPP_INTERMEDIATE_DIRECTORY)/%.o, $(filter %.cpp, $(ZPP_CPP_SOURCE_FILES)))
+ZPP_CXX_OBJECT_FILES := $(patsubst %.cxx, $(ZPP_INTERMEDIATE_DIRECTORY)/%.o, $(filter %.cxx, $(ZPP_CPP_SOURCE_FILES)))
+ZPP_CC_OBJECT_FILES := $(patsubst %.cc, $(ZPP_INTERMEDIATE_DIRECTORY)/%.o, $(filter %.cc, $(ZPP_CPP_SOURCE_FILES)))
+ZPP_CPPM_OBJECT_FILES := $(patsubst %.cppm, $(ZPP_INTERMEDIATE_DIRECTORY)/%.o, $(filter %.cppm, $(ZPP_CPP_SOURCE_FILES)))
+ZPP_S_OBJECT_FILES := $(patsubst %.S, $(ZPP_INTERMEDIATE_DIRECTORY)/%.o, $(filter %.S, $(ZPP_ASSEMBLY_SOURCE_FILES)))
+
+ZPP_OBJECT_FILES := \
+	$(ZPP_C_OBJECT_FILES) \
+	$(ZPP_CPP_OBJECT_FILES) \
+	$(ZPP_CXX_OBJECT_FILES) \
+	$(ZPP_CC_OBJECT_FILES) \
+	$(ZPP_CPPM_OBJECT_FILES) \
+	$(ZPP_S_OBJECT_FILES)
+
 ZPP_OBJECT_FILES_DIRECTORIES := $(dir $(ZPP_OBJECT_FILES))
 
 ZPP_DEPENDENCY_FILES := $(patsubst %.o, %.d, $(ZPP_OBJECT_FILES))
-
-ZPP_MODULE_DEPENDENCY_FILES := \
-	$(patsubst %.cpp, $(ZPP_INTERMEDIATE_DIRECTORY)/%.cpp.md, $(filter %.cpp, $(ZPP_SOURCE_FILES))) \
-	$(patsubst %.cc, $(ZPP_INTERMEDIATE_DIRECTORY)/%.cc.md, $(filter %.cc, $(ZPP_SOURCE_FILES)))
-ifneq ($(ZPP_CPP_MODULES_TYPE), )
-ZPP_MODULE_DEPENDENCY_FILES += $(patsubst %.cppm, $(ZPP_INTERMEDIATE_DIRECTORY)/%.cppm.md, $(filter %.cppm, $(ZPP_SOURCE_FILES)))
-endif
 
 ifeq ($(ZPP_LINK_TYPE), default)
 	ZPP_LINK_COMMAND := $(ZPP_LINK) -o $(ZPP_OUTPUT_DIRECTORY)/$(ZPP_TARGET_NAME) $(ZPP_OBJECT_FILES) $(ZPP_LFLAGS)
@@ -248,14 +267,32 @@ endef
 export ZPP_GENERATE_COMPILE_COMMANDS_SCRIPT
 ZPP_CALL_GENERATE_COMPILE_COMMANDS_SCRIPT := $(ZPP_PYTHON) -c "$$ZPP_GENERATE_COMPILE_COMMANDS_SCRIPT"
 
-build_single: $(ZPP_COMPILE_COMMANDS_JSON) $(ZPP_OUTPUT_DIRECTORY)/$(ZPP_TARGET_NAME)
-	@echo "Built '$(ZPP_TARGET_TYPE)/$(ZPP_TARGET_NAME)'."
-
-ifneq ($(ZPP_COMPILE_COMMANDS_JSON), )
-$(ZPP_COMPILE_COMMANDS_JSON): $(patsubst %, %.zppcmd, $(ZPP_OBJECT_FILES)) $(patsubst %, %.zppcmd, $(ZPP_COMPILED_MODULE_FILES))
-	@echo "Building '$@'..."; \
-	$(ZPP_CALL_GENERATE_COMPILE_COMMANDS_SCRIPT)
+ifeq ($(ZPP_GENERATE_ASSEMBLY), false)
+ZPP_INTERMEDIATE_EXTENSION := o
+ZPP_COMPILE_INTERMEDIATE_FLAG := -c
+ZPP_C_COMPILED_FILES := $(ZPP_C_OBJECT_FILES)
+ifeq ($(ZPP_CPP_MODULES_TYPE), )
+ZPP_CPP_COMPILED_NONMODULE_FILES := $(ZPP_CPP_OBJECT_FILES)
+ZPP_CXX_COMPILED_NONMODULE_FILES := $(ZPP_CXX_OBJECT_FILES)
+ZPP_CC_COMPILED_NONMODULE_FILES := $(ZPP_CC_OBJECT_FILES)
+ZPP_CPPM_COMPILED_NONMODULE_FILES := $(ZPP_CPPM_OBJECT_FILES)
 endif
+else ifeq ($(ZPP_GENERATE_ASSEMBLY), true)
+ZPP_INTERMEDIATE_EXTENSION := S
+ZPP_COMPILE_INTERMEDIATE_FLAG := -S
+ZPP_C_COMPILED_FILES := $(ZPP_C_ASSEMBLY_FILES)
+ifeq ($(ZPP_CPP_MODULES_TYPE), )
+ZPP_CPP_COMPILED_NONMODULE_FILES := $(ZPP_CPP_ASSEMBLY_FILES)
+ZPP_CXX_COMPILED_NONMODULE_FILES := $(ZPP_CXX_ASSEMBLY_FILES)
+ZPP_CC_COMPILED_NONMODULE_FILES := $(ZPP_CC_ASSEMBLY_FILES)
+ZPP_CPPM_COMPILED_NONMODULE_FILES := $(ZPP_CPPM_ASSEMBLY_FILES)
+endif
+else
+$(error ZPP_GENERATE_ASSEMBLY must either be true or false)
+endif
+
+build: $(ZPP_COMPILE_COMMANDS_JSON) $(ZPP_OUTPUT_DIRECTORY)/$(ZPP_TARGET_NAME)
+	@echo "Built '$(ZPP_TARGET_TYPE)/$(ZPP_TARGET_NAME)'."
 
 build_init:
 	@echo "Building '$(ZPP_TARGET_TYPE)/$(ZPP_TARGET_NAME)' in '$(ZPP_CONFIGURATION)' mode..."; \
@@ -275,152 +312,7 @@ $(ZPP_OUTPUT_DIRECTORY)/$(ZPP_TARGET_NAME): $(ZPP_OBJECT_FILES)
 	$(ZPP_LINK_COMMAND); \
 	$(ZPP_POSTLINK_COMMANDS)
 
-ifeq ($(ZPP_GENERATE_ASSEMBLY), true)
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.S: %.c | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Compiling '$<'..."; \
-	$(ZPP_CC) -S $(ZPP_CFLAGS) -o $@ $< -MD -MP -MF `dirname $@`/`basename $@ .S`.d
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.c | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo '$(ZPP_CC) -c $(ZPP_CFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
-		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
-	echo $< >> $@
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.S: %.cpp | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Compiling '$<'..."; \
-	$(ZPP_CXX) -S $(ZPP_CXXFLAGS) -o $@ $< \
-		$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAGS_$(subst .,__dot__,$(subst /,__sep__,$<))) \
-		-MD -MP -MF `dirname $@`/`basename $@ .S`.d
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cpp | build_init
-	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
-		'$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAGS_$(subst .,__dot__,$(subst /,__sep__,$<))) ' \
-		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
-	echo $< >> $@
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.S: %.cc | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Compiling '$<'..."; \
-	$(ZPP_CXX) -S $(ZPP_CXXFLAGS) -o $@ $< \
-		$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAGS_$(subst .,__dot__,$(subst /,__sep__,$<))) \
-		-MD -MP -MF `dirname $@`/`basename $@ .S`.d
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cc | build_init
-	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
-		'$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAGS_$(subst .,__dot__,$(subst /,__sep__,$<))) ' \
-		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
-	echo $< >> $@
-
-ifneq ($(ZPP_CPP_MODULES_TYPE), )
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.S: $(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION) | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Compiling '$<'..."; \
-	$(ZPP_CXX) -S $(ZPP_CXXMFLAGS) -o $@ $<
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cppm | build_init
-	@echo '$(ZPP_CXX) -c $(ZPP_CXXMFLAGS) -o ' \
-		`dirname $@`/`basename $@ .zppcmd` `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) > $@; \
-	echo `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) >> $@
-endif
-
-ifeq ($(ZPP_CPP_MODULES_TYPE), clang)
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION): %.cppm | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Compiling '$<'..."; \
-	$(ZPP_CXX) --precompile $(ZPP_CXXFLAGS) -o $@ $< \
-		$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAG_$(subst .,__dot__,$(subst /,__sep__,$<))) \
-		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd: %.cppm | build_init
-	@echo '$(ZPP_CXX) --precompile $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd` ' $< ' \
-		'$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAGS_$(subst .,__dot__,$(subst /,__sep__,$<))) ' \
-		'-MD -MP -MF '`dirname $@`/`basename $@ .$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd`.d > $@; \
-	echo $< >> $@
-endif
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o: $(ZPP_INTERMEDIATE_DIRECTORY)/%.S
-	@$(ZPP_CC) -Wno-unicode -c -o $@ $<
-else ifeq ($(ZPP_GENERATE_ASSEMBLY), false)
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o: %.c | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Compiling '$<'..."; \
-	$(ZPP_CC) -c $(ZPP_CFLAGS) -o $@ $< -MD -MP -MF `dirname $@`/`basename $@ .o`.d
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.c | build_init
-	@echo '$(ZPP_CC) -c $(ZPP_CFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
-		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
-	echo $< >> $@
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o: %.cpp | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Compiling '$<'..."; \
-	$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o $@ $< \
-		$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAGS_$(subst .,__dot__,$(subst /,__sep__,$<))) \
-		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cpp | build_init
-	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
-		'$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAGS_$(subst .,__dot__,$(subst /,__sep__,$<))) ' \
-		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
-	echo $< >> $@
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o: %.cc | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Compiling '$<'..."; \
-	$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o $@ $< \
-		$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAGS_$(subst .,__dot__,$(subst /,__sep__,$<))) \
-		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cc | build_init
-	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
-		'$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAGS_$(subst .,__dot__,$(subst /,__sep__,$<))) ' \
-		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
-	echo $< >> $@
-
-ifneq ($(ZPP_CPP_MODULES_TYPE), )
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o: $(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION) | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Compiling '$<'..."; \
-	$(ZPP_CXX) -c $(ZPP_CXXMFLAGS) -o $@ $<
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cppm | build_init
-	@echo '$(ZPP_CXX) -c $(ZPP_CXXMFLAGS) -o ' \
-		`dirname $@`/`basename $@ .zppcmd` `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) > $@; \
-	echo `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) >> $@
-endif
-
-ifeq ($(ZPP_CPP_MODULES_TYPE), clang)
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION): %.cppm | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Compiling '$<'..."; \
-	$(ZPP_CXX) --precompile $(ZPP_CXXFLAGS) -o $@ $< \
-		$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAG_$(subst .,__dot__,$(subst /,__sep__,$<))) \
-		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd: %.cppm | build_init
-	@echo '$(ZPP_CXX) --precompile $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd` ' $< ' \
-		'$(ZPP_MODULE_FLAGS_ALL) $(ZPP_MODULE_FLAG_$(subst .,__dot__,$(subst /,__sep__,$<))) ' \
-		'-MD -MP -MF '`dirname $@`/`basename $@ .$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd`.d > $@; \
-	echo $< >> $@
-endif
-else
-$(error ZPP_GENERATE_ASSEMBLY must either be true or false)
-endif
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o: %.S | build_init $(ZPP_COMPILE_COMMANDS_JSON)
-	@echo "Assemblying '$<'..."; \
-	$(ZPP_AS) -c $(ZPP_ASFLAGS) -o $@ $< -MD -MP -MF `dirname $@`/`basename $@ .o`.d
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.S | build_init
-	@echo '$(ZPP_AS) -c $(ZPP_ASFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< -MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
-	echo $< >> $@
-
-ifeq ($(ZPP_CPP_MODULES_TYPE), clang)
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.cpp.md: %.cpp | build_dep_init
-	@$(ZPP_CXX) $(ZPP_CXXFLAGS) -Wno-unused-command-line-argument -E -Xclang -print-dependency-directives-minimized-source $< 2> /dev/null \
-		| $(ZPP_CREATE_MODULE_DEPENDENCIES) $@ $<
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.cc.md: %.cc | build_dep_init
-	@$(ZPP_CXX) $(ZPP_CXXFLAGS) -Wno-unused-command-line-argument -E -Xclang -print-dependency-directives-minimized-source $< 2> /dev/null \
-		| $(ZPP_CREATE_MODULE_DEPENDENCIES) $@ $<
-
-$(ZPP_INTERMEDIATE_DIRECTORY)/%.cppm.md: %.cppm | build_dep_init
-	@$(ZPP_CXX) $(ZPP_CXXFLAGS) -Wno-unused-command-line-argument -E -Xclang -print-dependency-directives-minimized-source $< 2> /dev/null \
-		| $(ZPP_CREATE_MODULE_DEPENDENCIES) $@ $<
-endif
-
-clean_single:
+clean:
 	@echo "Cleaning '$(ZPP_TARGET_TYPE)/$(ZPP_TARGET_NAME)'..."; \
 	rm -rf $(ZPP_INTERMEDIATE_DIRECTORY_ROOT)/debug/$(ZPP_TARGET_TYPE); \
 	rm -rf $(ZPP_INTERMEDIATE_DIRECTORY_ROOT)/release/$(ZPP_TARGET_TYPE); \
@@ -431,17 +323,193 @@ clean_single:
 	find $(ZPP_OUTPUT_DIRECTORY_ROOT) -type d -empty -delete 2> /dev/null; \
 	echo "Cleaned '$(ZPP_TARGET_TYPE)/$(ZPP_TARGET_NAME)'."
 
+rebuild: clean_mode
+	@$(MAKE) -s -f $(ZPP_THIS_MAKEFILE) build ZPP_CLEANING=
+
 clean_mode:
 	@rm -rf $(ZPP_INTERMEDIATE_DIRECTORY); \
 	rm -rf $(ZPP_OUTPUT_DIRECTORY)/$(ZPP_TARGET_NAME)
 
-rebuild_single: clean_mode
-	@$(MAKE) -s -f $(ZPP_THIS_MAKEFILE) build ZPP_SKIP_DEPENDENCIES=
+ifneq ($(ZPP_COMPILE_COMMANDS_JSON), )
+$(ZPP_COMPILE_COMMANDS_JSON): $(patsubst %, %.zppcmd, $(ZPP_OBJECT_FILES)) $(patsubst %, %.zppcmd, $(ZPP_COMPILED_MODULE_FILES))
+	@echo "Building '$@'..."; \
+	$(ZPP_CALL_GENERATE_COMPILE_COMMANDS_SCRIPT)
+endif
 
-ifeq ($(ZPP_SKIP_DEPENDENCIES), )
+$(ZPP_C_COMPILED_FILES): $(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_INTERMEDIATE_EXTENSION): %.c | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Compiling '$<'..."; \
+	$(ZPP_CC) $(ZPP_COMPILE_INTERMEDIATE_FLAG) $(ZPP_CFLAGS) -o $@ $< \
+		-MD -MP -MF `dirname $@`/`basename $@ .$(ZPP_INTERMEDIATE_EXTENSION)`.d
+
+$(patsubst %.$(ZPP_INTERMEDIATE_EXTENSION), %.o.zppcmd, $(ZPP_C_COMPILED_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.c | build_init
+	@echo '$(ZPP_CC) -c $(ZPP_CFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
+		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
+
+$(ZPP_CPP_COMPILED_NONMODULE_FILES): $(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_INTERMEDIATE_EXTENSION): %.cpp | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Compiling '$<'..."; \
+	$(ZPP_CXX) $(ZPP_COMPILE_INTERMEDIATE_FLAG) $(ZPP_CXXFLAGS) -o $@ $< \
+		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_IMPLEMENTATION_FLAGS_$<) \
+		-MD -MP -MF `dirname $@`/`basename $@ .$(ZPP_INTERMEDIATE_EXTENSION)`.d
+
+$(patsubst %.$(ZPP_INTERMEDIATE_EXTENSION), %.o.zppcmd, $(ZPP_CPP_COMPILED_NONMODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cpp | build_init
+	@echo '$(ZPP_CXX) $(ZPP_COMPILE_INTERMEDIATE_FLAG) $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
+		'$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_IMPLEMENTATION_FLAGS_$<) ' \
+		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
+
+$(ZPP_CXX_COMPILED_NONMODULE_FILES): $(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_INTERMEDIATE_EXTENSION): %.cxx | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Compiling '$<'..."; \
+	$(ZPP_CXX) $(ZPP_COMPILE_INTERMEDIATE_FLAG) $(ZPP_CXXFLAGS) -o $@ $< \
+		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_IMPLEMENTATION_FLAGS_$<) \
+		-MD -MP -MF `dirname $@`/`basename $@ .$(ZPP_INTERMEDIATE_EXTENSION)`.d
+
+$(patsubst %.$(ZPP_INTERMEDIATE_EXTENSION), %.o.zppcmd, $(ZPP_CXX_COMPILED_NONMODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cxx | build_init
+	@echo '$(ZPP_CXX) $(ZPP_COMPILE_INTERMEDIATE_FLAG) $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
+		'$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_IMPLEMENTATION_FLAGS_$<) ' \
+		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
+
+$(ZPP_CC_COMPILED_NONMODULE_FILES): $(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_INTERMEDIATE_EXTENSION): %.cc | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Compiling '$<'..."; \
+	$(ZPP_CXX) $(ZPP_COMPILE_INTERMEDIATE_FLAG) $(ZPP_CXXFLAGS) -o $@ $< \
+		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_IMPLEMENTATION_FLAGS_$<) \
+		-MD -MP -MF `dirname $@`/`basename $@ .$(ZPP_INTERMEDIATE_EXTENSION)`.d
+
+$(patsubst %.$(ZPP_INTERMEDIATE_EXTENSION), %.o.zppcmd, $(ZPP_CC_COMPILED_NONMODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cc | build_init
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
+		'$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_IMPLEMENTATION_FLAGS_$<) ' \
+		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
+
+$(ZPP_CPPM_COMPILED_NONMODULE_FILES): $(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_INTERMEDIATE_EXTENSION): %.cppm | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Compiling '$<'..."; \
+	$(ZPP_CXX) $(ZPP_COMPILE_INTERMEDIATE_FLAG) $(ZPP_CXXFLAGS) -o $@ $< \
+		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_IMPLEMENTATION_FLAGS_$<) \
+		-MD -MP -MF `dirname $@`/`basename $@ .$(ZPP_INTERMEDIATE_EXTENSION)`.d
+
+$(patsubst %.$(ZPP_INTERMEDIATE_EXTENSION), %.o.zppcmd, $(ZPP_CPPM_COMPILED_NONMODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cppm | build_init
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< ' \
+		'$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_IMPLEMENTATION_FLAGS_$<) ' \
+		'-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
+
+$(patsubst %.$(ZPP_COMPILED_MODULE_EXTENSION), %.$(ZPP_INTERMEDIATE_EXTENSION), $(ZPP_COMPILED_MODULE_FILES)): \
+		%.$(ZPP_INTERMEDIATE_EXTENSION): %.$(ZPP_COMPILED_MODULE_EXTENSION) | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Compiling '$<'..."; \
+	$(ZPP_CXX) $(ZPP_COMPILE_INTERMEDIATE_FLAG) $(ZPP_CXXMFLAGS) -o $@ $<
+
+$(patsubst %.$(ZPP_COMPILED_MODULE_EXTENSION), %.o.zppcmd, $(ZPP_CPP_COMPILED_MODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cpp | build_init
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXMFLAGS) -o ' \
+		`dirname $@`/`basename $@ .zppcmd` `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) > $@; \
+	echo `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) >> $@
+
+$(patsubst %.$(ZPP_COMPILED_MODULE_EXTENSION), %.o.zppcmd, $(ZPP_CXX_COMPILED_MODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cxx | build_init
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXMFLAGS) -o ' \
+		`dirname $@`/`basename $@ .zppcmd` `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) > $@; \
+	echo `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) >> $@
+
+$(patsubst %.$(ZPP_COMPILED_MODULE_EXTENSION), %.o.zppcmd, $(ZPP_CC_COMPILED_MODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cc | build_init
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXMFLAGS) -o ' \
+		`dirname $@`/`basename $@ .zppcmd` `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) > $@; \
+	echo `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) >> $@
+
+$(patsubst %.$(ZPP_COMPILED_MODULE_EXTENSION), %.o.zppcmd, $(ZPP_CPPM_COMPILED_MODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.cppm | build_init
+	@echo '$(ZPP_CXX) -c $(ZPP_CXXMFLAGS) -o ' \
+		`dirname $@`/`basename $@ .zppcmd` `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) > $@; \
+	echo `dirname $@`/`basename $@ .o.zppcmd`.$(ZPP_COMPILED_MODULE_EXTENSION) >> $@
+
+ifeq ($(ZPP_CPP_MODULES_TYPE), clang)
+$(ZPP_CPP_COMPILED_MODULE_FILES): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION): %.cpp | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Compiling '$<'..."; \
+	$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o $@ $< \
+		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) \
+		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
+
+$(patsubst %, %.zppcmd, $(ZPP_CPP_COMPILED_MODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd: %.cpp | build_init
+	@echo '$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd` ' $< ' \
+		'$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) ' \
+		'-MD -MP -MF '`dirname $@`/`basename $@ .$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd`.d > $@; \
+	echo $< >> $@
+
+$(ZPP_CXX_COMPILED_MODULE_FILES): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION): %.cxx | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Compiling '$<'..."; \
+	$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o $@ $< \
+		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) \
+		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
+
+$(patsubst %, %.zppcmd, $(ZPP_CXX_COMPILED_MODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd: %.cxx | build_init
+	@echo '$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd` ' $< ' \
+		'$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) ' \
+		'-MD -MP -MF '`dirname $@`/`basename $@ .$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd`.d > $@; \
+	echo $< >> $@
+
+$(ZPP_CC_COMPILED_MODULE_FILES): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION): %.cc | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Compiling '$<'..."; \
+	$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o $@ $< \
+		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) \
+		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
+
+$(patsubst %, %.zppcmd, $(ZPP_CC_COMPILED_MODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd: %.cc | build_init
+	@echo '$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd` ' $< ' \
+		'$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) ' \
+		'-MD -MP -MF '`dirname $@`/`basename $@ .$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd`.d > $@; \
+	echo $< >> $@
+
+$(ZPP_CPPM_COMPILED_MODULE_FILES): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION): %.cppm | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Compiling '$<'..."; \
+	$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o $@ $< \
+		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) \
+		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
+
+$(patsubst %, %.zppcmd, $(ZPP_CPPM_COMPILED_MODULE_FILES)): \
+		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd: %.cppm | build_init
+	@echo '$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o '`dirname $@`/`basename $@ .zppcmd` ' $< ' \
+		'$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) ' \
+		'-MD -MP -MF '`dirname $@`/`basename $@ .$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd`.d > $@; \
+	echo $< >> $@
+endif # ifeq ($(ZPP_CPP_MODULES_TYPE), clang)
+
+$(ZPP_S_OBJECT_FILES): $(ZPP_INTERMEDIATE_DIRECTORY)/%.o: %.S | build_init $(ZPP_COMPILE_COMMANDS_JSON)
+	@echo "Assemblying '$<'..."; \
+	$(ZPP_AS) -c $(ZPP_ASFLAGS) -o $@ $< -MD -MP -MF `dirname $@`/`basename $@ .o`.d
+
+$(patsubst %, %.zppcmd, $(ZPP_S_OBJECT_FILES)): $(ZPP_INTERMEDIATE_DIRECTORY)/%.o.zppcmd: %.S | build_init
+	@echo '$(ZPP_AS) -c $(ZPP_ASFLAGS) -o '`dirname $@`/`basename $@ .zppcmd`' $< \
+		-MD -MP -MF '`dirname $@`/`basename $@ .o.zppcmd`.d > $@; \
+	echo $< >> $@
+
+ifeq ($(ZPP_GENERATE_ASSEMBLY), true)
+$(ZPP_C_OBJECT_FILES) $(ZPP_CPP_OBJECT_FILES) $(ZPP_CXX_OBJECT_FILES) $(ZPP_CC_OBJECT_FILES) $(ZPP_CPPM_OBJECT_FILES): %.o: %.S
+	@echo "Assemblying '$<'..."; \
+	$(ZPP_CC) -Wno-unicode -c -o $@ $<
+endif
+
+ifeq ($(ZPP_CPP_MODULES_TYPE), clang)
+$(ZPP_MODULE_DEPENDENCY_FILES): $(ZPP_INTERMEDIATE_DIRECTORY)/%.deps: % | build_dep_init
+	@$(ZPP_CXX) $(ZPP_CXXFLAGS) -Wno-unused-command-line-argument -E \
+		-Xclang -print-dependency-directives-minimized-source $< 2> /dev/null \
+		| $(ZPP_CREATE_MODULE_DEPENDENCIES) $@ $<
+endif
+
+ifeq ($(ZPP_CLEANING), )
 -include $(ZPP_DEPENDENCY_FILES)
--include $(ZPP_MODULE_DEPENDENCY_FILES)
-ZPP_MODULE_FLAGS_ALL := $(sort $(ZPP_MODULE_FLAGS_ALL))
 endif
 
 ZPP_PROJECT_RULES := true

@@ -126,17 +126,12 @@ The `ZPP_CPP_MODULES_TYPE` controls implementation type of C++20 modules. If emp
 are disabled, otherwise, the only supported value is `ZPP_CPP_MODULES_TYPE := clang` which enables
 clang modules. You will need to also set the `ZPP_CXXFLAGS` to include the `-fmodules` flag.
 
-The current implementation is highly experimental, turned off by default,
-and has the following limitations:
-1. Each module interface must have the `.cppm` file extention and its basename must be the same as the
-exported module (i.e `export module a;` must be in the file `a.cppm`)
-2. Module names with dots are supported, in a way that either the module interface file name includes dots, or
-that the module interface file is inside a directory tree matching the names separated by dots (i.e `export module hello.world;` can be
-declared in the module interface file `hello/world.cppm`)
-3. Module interface files must have unique names (i.e no two files named `a.cppm`).
-4. Currently there is no support for module partitions.
-5. Possible untested edge cases may occur if macros or includes are involved together with imports, or with
-the syntax of the import/export directives, as they parsed manually into build rules.
+The current implementation is highly experimental, and turned off by default.
+The following are known limitations of the current implementation:
+1. Only clang is supported (tested clang-11 and above).
+2. Currently there is no support for module partitions.
+3. There is no optimization around finding module interfaces, any `C++` file is searched to
+check if it a module interface (the `cppm` extension however was added as a valid `C++` file)
 
 Example:
 ```make
