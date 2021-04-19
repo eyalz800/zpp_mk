@@ -434,7 +434,7 @@ $(ZPP_CPP_COMPILED_MODULE_FILES): \
 	@echo "Compiling '$<'..."; \
 	$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o $@ $< \
 		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) \
-		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
+		-MD -MP -MF `dirname $@`/`basename $@ .$(ZPP_COMPILED_MODULE_EXTENSION)`.d
 
 $(patsubst %, %.zppcmd, $(ZPP_CPP_COMPILED_MODULE_FILES)): \
 		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd: %.cpp | build_init
@@ -448,7 +448,7 @@ $(ZPP_CXX_COMPILED_MODULE_FILES): \
 	@echo "Compiling '$<'..."; \
 	$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o $@ $< \
 		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) \
-		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
+		-MD -MP -MF `dirname $@`/`basename $@ .$(ZPP_COMPILED_MODULE_EXTENSION)`.d
 
 $(patsubst %, %.zppcmd, $(ZPP_CXX_COMPILED_MODULE_FILES)): \
 		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd: %.cxx | build_init
@@ -462,7 +462,7 @@ $(ZPP_CC_COMPILED_MODULE_FILES): \
 	@echo "Compiling '$<'..."; \
 	$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o $@ $< \
 		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) \
-		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
+		-MD -MP -MF `dirname $@`/`basename $@ .$(ZPP_COMPILED_MODULE_EXTENSION)`.d
 
 $(patsubst %, %.zppcmd, $(ZPP_CC_COMPILED_MODULE_FILES)): \
 		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd: %.cc | build_init
@@ -476,7 +476,7 @@ $(ZPP_CPPM_COMPILED_MODULE_FILES): \
 	@echo "Compiling '$<'..."; \
 	$(ZPP_CXX) --precompile -x c++-module $(ZPP_CXXFLAGS) -o $@ $< \
 		$(ZPP_MODULE_INTERFACE_DECLARATION_FLAGS) $(ZPP_MODULE_FLAG_$<) \
-		-MD -MP -MF `dirname $@`/`basename $@ .o`.d
+		-MD -MP -MF `dirname $@`/`basename $@ .$(ZPP_COMPILED_MODULE_EXTENSION)`.d
 
 $(patsubst %, %.zppcmd, $(ZPP_CPPM_COMPILED_MODULE_FILES)): \
 		$(ZPP_INTERMEDIATE_DIRECTORY)/%.$(ZPP_COMPILED_MODULE_EXTENSION).zppcmd: %.cppm | build_init
