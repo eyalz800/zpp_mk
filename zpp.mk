@@ -42,19 +42,22 @@ ZPP_PROJECTS_DIRECTORIES := $(ZPP_INCLUDE_PROJECTS)
 ZPP_INCLUDE_PROJECTS :=
 
 build:
-	@for project in $(ZPP_PROJECTS_DIRECTORIES); do \
+	@set -e ; \
+	for project in $(ZPP_PROJECTS_DIRECTORIES); do \
 		echo "Entering '$$project'." ; \
 		$(MAKE) projects= -s -f `realpath $(ZPP_THIS_MAKEFILE) --relative-to $$project` -C $$project; \
 		echo "Leaving '$$project'." ; \
 	done
 clean:
-	@for project in $(ZPP_PROJECTS_DIRECTORIES); do \
+	@set -e ; \
+	for project in $(ZPP_PROJECTS_DIRECTORIES); do \
 		echo "Entering '$$project'." ; \
 		$(MAKE) projects= -s -f `realpath $(ZPP_THIS_MAKEFILE) --relative-to $$project` -C $$project clean ZPP_CLEANING=true ; \
 		echo "Leaving '$$project'." ; \
 	done
 rebuild:
-	@for project in $(ZPP_PROJECTS_DIRECTORIES); do \
+	@set -e ; \
+	for project in $(ZPP_PROJECTS_DIRECTORIES); do \
 		echo "Entering '$$project'." ; \
 		$(MAKE) projects= -s -f `realpath $(ZPP_THIS_MAKEFILE) --relative-to $$project` -C $$project rebuild ZPP_CLEANING=true ; \
 		echo "Leaving '$$project'." ; \
