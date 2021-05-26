@@ -222,7 +222,6 @@ ZPP_LFLAGS := $(ZPP_FLAGS) $(ZPP_CXXFLAGS) -pie -Wl,--no-undefined
 ZPP_LFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
 ZPP_LFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE) \
 	-Wl,--strip-all -Wl,-flto -Wl,--gc-sections
-ZPP_POSTLINK_COMMANDS :=
 endif
 ```
 
@@ -292,9 +291,6 @@ ZPP_LFLAGS_RELEASE := $(ZPP_FLAGS_RELEASE) \
 	-Wl,--strip-all -Wl,-flto -Wl,--gc-sections
 ```
 
-The `ZPP_POSTLINK_COMMANDS` allows to run custom shell commands after linking,
-for your convenience.
-
 ### Project Rules Section
 The project rules section is a reserved space for custom rules that needs to take
 place in some cases. This section must be enclosed with the `ZPP_PROJECT_RULES` variable.
@@ -338,6 +334,7 @@ ZPP_AS := $(ZPP_CC)
 ZPP_LINK := $(ZPP_CXX)
 ZPP_AR := ar
 ZPP_PYTHON := python3
+ZPP_POSTLINK_COMMANDS :=
 endif
 ```
 Note that here we use the `ZPP_CC` as assembly compiler as well, and
@@ -361,6 +358,9 @@ endif
 ```
 
 The `ZPP_PYTHON` is only required if the project settings ask to build the `compile_commands.json` file.
+
+The `ZPP_POSTLINK_COMMANDS` allows to run custom shell commands after linking,
+for your convenience.
 
 At the appendix section there is an example for a possible windows `toolchain.mk` file.
 
