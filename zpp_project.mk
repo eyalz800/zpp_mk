@@ -17,7 +17,7 @@ ZPP_FLAGS := \
 	-pedantic -Wall -Wextra -Werror -fPIE
 ZPP_FLAGS_DEBUG := -g
 ZPP_FLAGS_RELEASE := \
-	-O2 -flto -ffunction-sections \
+	-O2 -DNDEBUG -flto -ffunction-sections \
 	-fdata-sections -fvisibility=hidden
 ZPP_CFLAGS := $(ZPP_FLAGS) -std=c11
 ZPP_CFLAGS_DEBUG := $(ZPP_FLAGS_DEBUG)
