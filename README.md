@@ -16,7 +16,6 @@ Table of Contents
 * [Multi Project Setup](#multi-project-setup)
 * [Debug and Release Builds](#debug-and-release-builds)
 * [Useful Variables set by `zpp.mk`](#useful-variables-set-by-zppmk)
-* [Appendix](#appendix)
 
 Motivation
 ----------
