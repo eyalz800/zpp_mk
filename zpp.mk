@@ -183,18 +183,28 @@ intermediate_extension = '.S' if '$(ZPP_GENERATE_ASSEMBLY)' == 'true' else '.o'
 dependency_directives = '\n'.join([ \
 	line.strip() for line in sys.stdin.read().strip().replace('\r', '').split('\n') \
 	if not line.strip().startswith('#')])
+dependency_directives = (';' + dependency_directives.replace(' export:', ' export :').replace(' import:', ' import :')) \
+	                    .replace(';export:',';export :').replace(';import:', ';import :')[1:]
 dependency_directives = [s.strip().split() for s in dependency_directives.split(';') if '<' not in s and '"' not in s]
 dependency_directives = [s for s in dependency_directives if len(s) > 1 and s[0] in ['import', 'export', 'module']]
 module_interface = first([m[2] for m in dependency_directives if len(m) == 3 and m[0] == 'export' and m[1] == 'module'])
 module_implementation = first([m[1] for m in dependency_directives if len(m) == 2 and m[0] == 'module'])
 needed_modules = [m[1] if m[0] in ['import', 'module'] else m[2] for m in dependency_directives \
 				 if len(m) > 1 and (m[0] in ['import', 'module'] or (m[0], m[1]) == ('export', 'import'))]
+if module_implementation and ':' in module_implementation:
+	needed_modules.remove(module_implementation)
+	module_interface = module_implementation
+	module_implementation = None
+for i, needed_module in enumerate(needed_modules):
+	if needed_module.startswith(':'):
+		top_module = module_interface.split(':')[0] if module_interface else module_implementation.split(':')[0]
+		needed_modules[i] = top_module + needed_module
 translated_file = os.path.join('$(ZPP_INTERMEDIATE_DIRECTORY)', os.path.splitext(source_file)[0]) \
 	+ ('.$(ZPP_COMPILED_MODULE_EXTENSION)' if module_interface else intermediate_extension)
-needed_files = ['$$(ZPP_MODULE_FILE_{0})'.format(needed_module) for needed_module in needed_modules]
+needed_files = ['$$(ZPP_MODULE_FILE_{0})'.format(needed_module.replace(':', '@')) for needed_module in needed_modules]
 with open(module_properties_file, 'w') as f:
 	f.write(''.join([
-		'ZPP_MODULE_FILE_{0} := {1}\n'.format(module_interface, translated_file) if module_interface else '',
+		'ZPP_MODULE_FILE_{0} := {1}\n'.format(module_interface.replace(':', '@'), translated_file) if module_interface else '',
 		''.join(['ZPP_MODULE_INTERFACE_DECLARATION_FLAGS += ',
 			'-fmodule-file=', module_interface, '=', translated_file, '\n']) if module_interface else '',
 		'ZPP_{0}_COMPILED_MODULE_FILES += {1}\n'.format(source_file_type.upper(), translated_file) if module_interface else '',
@@ -204,9 +214,9 @@ with open(dependencies_file, 'w') as f:
 	f.write(''.join([
 		''.join([translated_file, ': ', ' \\\n\t'.join([f for f in needed_files]), '\n\n']) if needed_files else '',
 		''.join(['ZPP_MODULE_IMPLEMENTATION_FLAGS_', source_file, ' := ',
-			'-fmodule-file=', '$$(ZPP_MODULE_FILE_{0})'.format(module_implementation), '\n']) if module_implementation else '',
+			'-fmodule-file=', '$$(ZPP_MODULE_FILE_{0})'.format(module_implementation.replace(':', '@')), '\n']) if module_implementation else '',
 		''.join(['ZPP_MODULE_IMPLEMENTATION_FLAGS_', source_file[2:], ' := ',
-			'-fmodule-file=', '$$(ZPP_MODULE_FILE_{0})'.format(module_implementation), '\n']) \
+			'-fmodule-file=', '$$(ZPP_MODULE_FILE_{0})'.format(module_implementation.replace(':', '@')), '\n']) \
 				if module_implementation and source_file.startswith('./') else '',
 	]))
 endef

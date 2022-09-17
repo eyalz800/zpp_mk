@@ -128,8 +128,7 @@ clang modules. You will need to also set the `ZPP_CXXFLAGS` to include the `-fmo
 The current implementation is highly experimental, and turned off by default.
 The following are known limitations of the current implementation:
 1. Only clang is supported (tested clang-11 and above).
-2. Currently there is no support for module partitions.
-3. There is no optimization around finding module interfaces, any `C++` file is searched to
+2. There is no optimization around finding module interfaces, any `C++` file is searched to
 check if it a module interface (the `cppm` extension however was added as a valid `C++` file)
 
 Example:
